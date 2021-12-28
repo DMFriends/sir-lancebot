@@ -77,7 +77,7 @@ class Sudoku(commands.Cog):
         self.bot = bot
         self.games: dict[int:SudokuGame] = {}
 
-    @commands.group(aliases=["s"])
+    @commands.group(aliases=["s"], invoke_without_command=True)
     async def sudoku(self, ctx: commands.Context) -> None:
         """
         Play Sudoku with the bot!
@@ -106,7 +106,7 @@ class Sudoku(commands.Cog):
         game = self.games.get(ctx.author.id)
         if game:
             if ctx.author == game.invoker:
-                del game
+                del self.games[ctx.author.id]
                 await ctx.send("Ended the current game.")
             else:
                 await ctx.send("Only the owner of the game can end it!")
@@ -116,19 +116,16 @@ class Sudoku(commands.Cog):
     @sudoku.command(aliases=["who", "information", "score"])
     async def info(self, ctx: commands.Context) -> None:
         """Send info about a currently running Sudoku game."""
-        game = self.games[ctx.author.id]
-        if not game.running:
-            await ctx.send("There are no currently running games!")
-            return
-        current_time = datetime.datetime.now()
-        info_embed = discord.Embed(title="Sudoku Game Information", color=Colours.grass_green)
-        info_embed.add_field(name="Player", value=game.invoker.name)
-        info_embed.add_field(name="Current Time", value=(current_time - game.started_at))
-        info_embed.add_field(name="Progress", value="N/A")  # add in this variable
-        info_embed.add_field(name="Difficulty", value=game.difficulty)
-        info_embed.set_author(name=game.invoker.name, icon_url=game.invoker.display_avatar.url)
-        info_embed.add_field(name="Hints Used", value=len(game.hints))
-        await ctx.send(embed=info_embed)
+        game = self.games.get(ctx.author.id)
+        if not game:
+            await ctx.send("You are not playing a game!")
+        else:
+            await ctx.send(embed=game.embed())
+
+    @sudoku.command()
+    async def hint(self, ctx: commands.Context) -> None:
+        """Fill in one empty square on the Sudoku board."""
+        pass
 
 
 class SudokuView(discord.ui.View):
@@ -145,8 +142,9 @@ class SudokuView(discord.ui.View):
         await self.ctx.invoke(self.ctx.bot.get_command("sudoku finish"))
 
     @discord.ui.button(style=discord.ButtonStyle.green, label="Hint")
-    async def hint_button(self, _: discord.ui.Select, interaction: discord.Interaction) -> discord.Message:
+    async def hint_button(self, _: discord.ui.Select, interaction: discord.Interaction) -> None:
         """Button that fills in one empty square on the Sudoku board."""
+        await self.ctx.invoke(self.ctx.bot.get_command("sudoku hint"))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Check to ensure that the interacting user is the user who invoked the command."""
