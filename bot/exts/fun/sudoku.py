@@ -1,5 +1,4 @@
 import datetime
-from typing import Optional
 
 import discord
 from PIL import Image, ImageDraw, ImageFont
@@ -12,9 +11,51 @@ from bot.constants import Colours
 
 BACKGROUND = (242, 243, 244)
 BLACK = 0
-grid = Image.open("bot/resources/fun/sudoku_template.png")
+SUDOKU_TEMPLATE_PATH = "bot/resources/fun/sudoku_template.png"
 NUM_FONT = ImageFont.truetype("bot/resources/fun/Roboto-Medium.ttf", 99)
-draw = ImageDraw.Draw(grid)
+
+
+class SudokuGame:
+    """Class that contains information and regarding Sudoku game."""
+
+    def __init__(self, ctx: commands.Context, difficulty: str):
+        self.ctx = ctx
+        self.image = Image.open(SUDOKU_TEMPLATE_PATH)
+        self.solution = self.generate_board()
+        self.puzzle = self.generate_puzzle()
+        self.running: bool = True
+        self.invoker: discord.Member = ctx.author
+        self.started_at: datetime.datetime = datetime.datetime.now()
+        self.difficulty: str = difficulty  # enum class?
+        self.hints: list[datetime.datetime] = []
+
+    def draw_num(self, digit: int, position: tuple[int, int]) -> Image:
+        """Draw a number on the sudoku board."""
+        digit = str(digit)
+        if digit in "123456" and len(digit) == 1:
+            draw = ImageDraw.Draw(self.image)
+            draw.text(self.index_to_coord(position), str(digit), fill=BLACK, font=NUM_FONT)
+            self.image.show()
+            return self.image
+
+    @staticmethod
+    def index_to_coord(position: tuple[int, int]) -> tuple[int, int]:
+        """Convert a 2d list index to a coordinate on the sudoku image."""
+        return position[0] * 100 + 20, position[1] * 100 - 5
+
+    @staticmethod
+    def generate_board() -> list[list[int]]:
+        """Generate a valid Sudoku with one solution."""
+        pass
+
+    def generate_puzzle(self) -> list[list[int]]:
+        """Remove numbers from a valid Sudoku solution based on the difficulty. Returns a Sudoku puzzle."""
+        pass
+
+    @property
+    def solved(self) -> bool:
+        """Check if the puzzle has been solved."""
+        return self.solution == self.puzzle
 
 
 class Sudoku(commands.Cog):
@@ -22,26 +63,7 @@ class Sudoku(commands.Cog):
 
     def __init__(self, bot: Bot):
         self.bot = bot
-        self.numbers: list[list]
-        self.solution = None
-        self.draw = draw
-        self.running: bool = False
-        self.invoker: Optional[discord.Member] = None
-        self.started_at: Optional[datetime.datetime] = None
-        self.difficulty: str = "Normal"  # enum class?
-        self.last_hint_time: Optional[datetime] = None
-
-    @staticmethod
-    def draw_num(digit: int, position: tuple[int, int]) -> None:
-        """..."""
-        digit = str(digit)
-        if digit in "123456789" and len(digit) == 1:
-            draw.text(position, str(digit), fill=BLACK, font=NUM_FONT)
-
-    @staticmethod
-    def index_to_coord(position: tuple[int, int]) -> tuple[int, int]:
-        """..."""
-        return position[0] * 100 + 20, position[1] * 100 - 5
+        self.games: dict[int:SudokuGame] = {}
 
     @commands.group(aliases=["s"])
     async def sudoku(self, ctx: commands.Context) -> None:
@@ -54,52 +76,53 @@ class Sudoku(commands.Cog):
         column, or any of the smaller 3x3 grids. In this version of the game, it would be 2x3 smaller grids
         instead of 3x3 and numbers 1-6 will be used on the grid.
         """
-        if not self.running:
+        if not self.games.get(ctx.author.id):
             await self.start(ctx)
 
     @sudoku.command()
     async def start(self, ctx: commands.Context, difficulty: str = "Normal") -> None:
         """Start a sudoku game."""
-        if self.running:
-            await ctx.send("A Sudoku game is already running!")
+        if self.games.get(ctx.author.id):
+            await ctx.send("You are already playing a game!")
             return
-        self.running = True
-        self.invoker = ctx.author
-        self.started_at = datetime.datetime.now()
-        # generate a sudoku board
+        self.games[ctx.author.id] = SudokuGame(ctx, difficulty)
         await ctx.send("Started a Sudoku game.")
 
     @sudoku.command(aliases=["end", "stop"])
     async def finish(self, ctx: commands.Context) -> None:
         """End a Sudoku game."""
-        if self.running:
-            if ctx.author == self.invoker:
-                self.running = False
+        game = self.games.get(ctx.author.id)
+        if game:
+            if ctx.author == game.invoker:
+                del game
                 await ctx.send("Ended the current game.")
             else:
                 await ctx.send("Only the owner of the game can end it!")
         else:
-            await ctx.send("There are no Sudoku games currently running!")
+            await ctx.send("You are not playing a sudoku game! Type `.sudoku start` to begin.")
 
     @sudoku.command(aliases=["who", "information", "score"])
     async def info(self, ctx: commands.Context) -> None:
         """Send info about a currently running Sudoku game."""
-        if not self.running:
+        game = self.games[ctx.author.id]
+        if not game.running:
             await ctx.send("There are no currently running games!")
             return
         current_time = datetime.datetime.now()
         info_embed = discord.Embed(title="Sudoku Game Information", color=Colours.grass_green)
-        info_embed.add_field(name="Player", value=self.invoker.name)
-        info_embed.add_field(name="Current Time", value=(current_time - self.started_at))
+        info_embed.add_field(name="Player", value=game.invoker.name)
+        info_embed.add_field(name="Current Time", value=(current_time - game.started_at))
         info_embed.add_field(name="Progress", value="N/A")  # add in this variable
-        info_embed.add_field(name="Difficulty", value=self.difficulty)
-        info_embed.set_author(name=self.invoker.name, icon_url=self.invoker.display_avatar.url)
+        info_embed.add_field(name="Difficulty", value=game.difficulty)
+        info_embed.set_author(name=game.invoker.name, icon_url=game.invoker.display_avatar.url)
+        info_embed.add_field(name="Hints Used", value=len(game.hints))
         await ctx.send(embed=info_embed)
 
 
 class SudokuView(discord.ui.View):
     """A set of buttons to control a sudoku game."""
-    def __init__(self, ctx):
+
+    def __init__(self, ctx: commands.Context):
         super(SudokuView, self).__init__()
         self.ctx = ctx
         # self.children[0]
@@ -112,7 +135,6 @@ class SudokuView(discord.ui.View):
     @discord.ui.button(style=discord.ButtonStyle.green, label="Hint")
     async def hint_button(self, _: discord.ui.Select, interaction: discord.Interaction) -> discord.Message:
         """Button that fills in one square on the sudoku board."""
-
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Check to ensure that the interacting user is the user who invoked the command."""
