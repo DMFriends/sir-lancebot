@@ -57,6 +57,18 @@ class SudokuGame:
         """Check if the puzzle has been solved."""
         return self.solution == self.puzzle
 
+    def embed(self) -> discord.Embed:
+        """Create a discord embed with game information."""
+        current_time = datetime.datetime.now()
+        info_embed = discord.Embed(title="Sudoku Game Information", color=Colours.grass_green)
+        info_embed.add_field(name="Player", value=self.invoker.name)
+        info_embed.add_field(name="Current Time", value=(current_time - self.started_at))
+        info_embed.add_field(name="Progress", value="N/A")  # add in this variable
+        info_embed.add_field(name="Difficulty", value=self.difficulty)
+        info_embed.set_author(name=self.invoker.name, icon_url=self.invoker.display_avatar.url)
+        info_embed.add_field(name="Hints Used", value=len(self.hints))
+        return info_embed
+
 
 class Sudoku(commands.Cog):
     """Cog for the Sudoku game."""
