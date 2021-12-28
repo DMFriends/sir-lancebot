@@ -30,7 +30,7 @@ class SudokuGame:
         self.hints: list[datetime.datetime] = []
 
     def draw_num(self, digit: int, position: tuple[int, int]) -> Image:
-        """Draw a number on the sudoku board."""
+        """Draw a number on the Sudoku board."""
         digit = str(digit)
         if digit in "123456" and len(digit) == 1:
             draw = ImageDraw.Draw(self.image)
@@ -40,7 +40,7 @@ class SudokuGame:
 
     @staticmethod
     def index_to_coord(position: tuple[int, int]) -> tuple[int, int]:
-        """Convert a 2d list index to a coordinate on the sudoku image."""
+        """Convert a 2D list index to a coordinate on the Sudoku image."""
         return position[0] * 100 + 20, position[1] * 100 - 5
 
     @staticmethod
@@ -120,21 +120,21 @@ class Sudoku(commands.Cog):
 
 
 class SudokuView(discord.ui.View):
-    """A set of buttons to control a sudoku game."""
+    """A set of buttons to control a Sudoku game."""
 
     def __init__(self, ctx: commands.Context):
         super(SudokuView, self).__init__()
         self.ctx = ctx
         # self.children[0]
 
-    @discord.ui.button(style=discord.ButtonStyle.red, label="End game")
+    @discord.ui.button(style=discord.ButtonStyle.red, label="End Game")
     async def end_button(self, _: discord.ui.Button, interaction: discord.Interaction) -> None:
         """Button that ends the current game."""
         await self.ctx.invoke(self.ctx.bot.get_command("sudoku finish"))
 
     @discord.ui.button(style=discord.ButtonStyle.green, label="Hint")
     async def hint_button(self, _: discord.ui.Select, interaction: discord.Interaction) -> discord.Message:
-        """Button that fills in one square on the sudoku board."""
+        """Button that fills in one empty square on the Sudoku board."""
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Check to ensure that the interacting user is the user who invoked the command."""
