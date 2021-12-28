@@ -1,3 +1,4 @@
+# import asyncio
 import datetime
 
 import discord
@@ -6,6 +7,8 @@ from discord.ext import commands
 
 from bot.bot import Bot
 from bot.constants import Colours
+
+# import time
 
 # import random
 
@@ -93,7 +96,7 @@ class Sudoku(commands.Cog):
 
     @sudoku.command()
     async def start(self, ctx: commands.Context, difficulty: str = "Normal") -> None:
-        """Start a sudoku game."""
+        """Start a Sudoku game."""
         if self.games.get(ctx.author.id):
             await ctx.send("You are already playing a game!")
             return
@@ -111,7 +114,7 @@ class Sudoku(commands.Cog):
             else:
                 await ctx.send("Only the owner of the game can end it!")
         else:
-            await ctx.send("You are not playing a sudoku game! Type `.sudoku start` to begin.")
+            await ctx.send("You are not playing a Sudoku game! Type `.sudoku start` to begin.")
 
     @sudoku.command(aliases=["who", "information", "score"])
     async def info(self, ctx: commands.Context) -> None:
@@ -128,21 +131,42 @@ class Sudoku(commands.Cog):
         pass
 
 
+class CoordinateConverter(commands.Converter):
+    """Class to convert a coordinate made of one letter and one number to a 2D list index."""
+
+    @staticmethod
+    async def convert(argument: str) -> tuple[int, int]:
+        """Convert a coordinate made of one letter and one number to a 2D list index."""
+        argument = argument.lower()
+        if len(argument) != 2:
+            raise commands.BadArgument("The coordinate must be two characters long.")
+        if argument[0].isalnum():
+            number, letter = argument[0], argument[1]
+        else:
+            number, letter = argument[1], argument[0]
+        if 0 > int(number) > 10 or letter not in "abcdef":
+            raise commands.BadArgument("The coordinate must comprise of"
+                                       "1 letter from A to F, and 1 number from 1 to 6.")
+
+        return ord(letter)-65, int(number)-1
+
+
 class SudokuView(discord.ui.View):
     """A set of buttons to control a Sudoku game."""
 
     def __init__(self, ctx: commands.Context):
         super(SudokuView, self).__init__()
+        self.disabled = None
         self.ctx = ctx
         # self.children[0]
 
     @discord.ui.button(style=discord.ButtonStyle.red, label="End Game")
-    async def end_button(self, _: discord.ui.Button, interaction: discord.Interaction) -> None:
+    async def end_button(self, _: discord.ui.Button) -> None:
         """Button that ends the current game."""
         await self.ctx.invoke(self.ctx.bot.get_command("sudoku finish"))
 
     @discord.ui.button(style=discord.ButtonStyle.green, label="Hint")
-    async def hint_button(self, _: discord.ui.Select, interaction: discord.Interaction) -> None:
+    async def hint_button(self, _: discord.ui.Select) -> None:
         """Button that fills in one empty square on the Sudoku board."""
         await self.ctx.invoke(self.ctx.bot.get_command("sudoku hint"))
 
