@@ -18,6 +18,25 @@ SUDOKU_TEMPLATE_PATH = "bot/resources/fun/sudoku_template.png"
 NUM_FONT = ImageFont.truetype("bot/resources/fun/Roboto-Medium.ttf", 99)
 
 
+class Coordinate(commands.Converter):
+    """Converter used in Sudoku game."""
+
+    async def convert(self, ctx: commands.Context, argument: str) -> tuple[int, int]:
+        """Convert alphanumeric grid coordinates to 2d list index. Eg 'C1'-> (2, 0)."""
+        argument = sorted(argument.lower())
+        if len(argument) != 2:
+            raise commands.BadArgument("The coordinate must be two characters long.")
+        if argument[0].isnumeric() and not argument[1].isnumeric():
+            number, letter = argument[0], argument[1]
+        else:
+            raise commands.BadArgument("The coordinate must comprise of"
+                                       "1 letter from A to F, and 1 number from 1 to 6.")
+        if 0 > int(number) > 10 or letter not in "abcdef":
+            raise commands.BadArgument("The coordinate must comprise of"
+                                       "1 letter from A to F, and 1 number from 1 to 6.")
+        return ord(letter)-97, int(number)-1
+
+
 class SudokuGame:
     """Class that contains information and regarding Sudoku game."""
 
