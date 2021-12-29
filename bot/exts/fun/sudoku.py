@@ -1,5 +1,5 @@
-# import asyncio
-import datetime
+import random
+import time
 
 import discord
 from PIL import Image, ImageDraw, ImageFont
@@ -7,10 +7,6 @@ from discord.ext import commands
 
 from bot.bot import Bot
 from bot.constants import Colours
-
-# import time
-
-# import random
 
 BACKGROUND = (242, 243, 244)
 BLACK = 0
@@ -28,9 +24,9 @@ class SudokuGame:
         self.puzzle = self.generate_puzzle()
         self.running: bool = True
         self.invoker: discord.Member = ctx.author
-        self.started_at: datetime.datetime = datetime.datetime.now()
+        self.started_at = time.time()
         self.difficulty: str = difficulty  # enum class?
-        self.hints: list[datetime.datetime] = []
+        self.hints: list[time.time] = []
 
     def draw_num(self, digit: int, position: tuple[int, int]) -> Image:
         """Draw a number on the Sudoku board."""
@@ -48,7 +44,7 @@ class SudokuGame:
 
     @staticmethod
     def generate_board() -> list[list[int]]:
-        """Generate a valid Sudoku with one solution."""
+        """Generate a valid Sudoku solution board."""
         pass
 
     def generate_puzzle(self) -> list[list[int]]:
@@ -60,9 +56,9 @@ class SudokuGame:
         """Check if the puzzle has been solved."""
         return self.solution == self.puzzle
 
-    def embed(self) -> discord.Embed:
-        """Create a discord embed with game information."""
-        current_time = datetime.datetime.now()
+    def info_embed(self) -> discord.Embed:
+        """Create an embed that displays game information."""
+        current_time = time.time()
         info_embed = discord.Embed(title="Sudoku Game Information", color=Colours.grass_green)
         info_embed.add_field(name="Player", value=self.invoker.name)
         info_embed.add_field(name="Current Time", value=(current_time - self.started_at))
@@ -128,7 +124,15 @@ class Sudoku(commands.Cog):
     @sudoku.command()
     async def hint(self, ctx: commands.Context) -> None:
         """Fill in one empty square on the Sudoku board."""
-        pass
+        game = self.games.get(ctx.author.id)
+        if game:
+            game.hints.append(time.time())
+            while True:
+                x = random.randint(1, 6)
+                y = random.randint(1, 6)
+                if game.puzzle[x][y] == 0:
+                    self.draw_num()
+                break
 
 
 class CoordinateConverter(commands.Converter):
@@ -173,8 +177,9 @@ class SudokuView(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Check to ensure that the interacting user is the user who invoked the command."""
         if interaction.user != self.ctx.author:
-            embed = discord.Embed(description="Sorry, but this interaction can only be used by the original author.")
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            error_embed = discord.Embed(description="Sorry, but this interaction can only"
+                                                    "be used by the original author.")
+            await interaction.response.send_message(embed=error_embed, ephemeral=True)
             return False
         return True
 
