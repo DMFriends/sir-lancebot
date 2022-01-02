@@ -87,6 +87,16 @@ class SudokuGame:
         info_embed.add_field(name="Hints Used", value=len(self.hints))
         return info_embed
 
+    async def update_board(self, digit=None, coord=None) :
+        embed = discord.Embed(description="Waiting for input...")
+        if digit and coord:
+            self.draw_num(digit, coord)
+        self.image.save("sudoku.png")
+        file = discord.File("sudoku.png")
+        embed.set_image(url="attachment://sudoku.png")
+        self.message = await self.ctx.send(file=file, embed=embed, view=SudokuView(self.ctx))
+        os.remove("sudoku.png")
+
 
 class Sudoku(commands.Cog):
     """Cog for the Sudoku game."""
