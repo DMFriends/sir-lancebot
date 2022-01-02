@@ -1,3 +1,7 @@
+# import asyncio
+import os
+from asyncio import TimeoutError
+from typing import Optional
 import random
 import time
 
@@ -46,6 +50,7 @@ class SudokuGame:
         self.started_at = time.time()
         self.difficulty: str = difficulty  # enum class?
         self.hints: list[time.time] = []
+        self.message = None
 
     def draw_num(self, digit: int, position: tuple[int, int]) -> Image:
         """Draw a number on the Sudoku board."""
@@ -53,12 +58,11 @@ class SudokuGame:
         if digit in "123456" and len(digit) == 1:
             draw = ImageDraw.Draw(self.image)
             draw.text(self.index_to_coord(position), str(digit), fill=BLACK, font=NUM_FONT)
-            self.image.show()
             return self.image
 
     @staticmethod
     def index_to_coord(position: tuple[int, int]) -> tuple[int, int]:
-        """Convert a 2D list index to a coordinate on the Sudoku image."""
+        """Convert a 2D list index to an x,y coordinate on the Sudoku image."""
         return position[0] * 100 + 20, position[1] * 100 - 5
 
     @staticmethod
@@ -68,7 +72,8 @@ class SudokuGame:
 
     def generate_puzzle(self) -> list[list[int]]:
         """Remove numbers from a valid Sudoku solution based on the difficulty. Returns a Sudoku puzzle."""
-        pass
+        self.puzzle = [([0]*6)]*6
+        return self.puzzle
 
     @property
     def solved(self) -> bool:
@@ -106,7 +111,7 @@ class Sudoku(commands.Cog):
         self.games: dict[int:SudokuGame] = {}
 
     @commands.group(aliases=["s"], invoke_without_command=True)
-    async def sudoku(self, ctx: commands.Context) -> None:
+    async def sudoku(self, ctx: commands.Context, coord: Optional[Coordinate] = None, digit: Optional[str] = None) -> None:
         """
         Play Sudoku with the bot!
 
@@ -116,8 +121,14 @@ class Sudoku(commands.Cog):
         column, or any of the smaller 3x3 grids. In this version of the game, it would be 2x3 smaller grids
         instead of 3x3 and numbers 1-6 will be used on the grid.
         """
-        if not self.games.get(ctx.author.id):
+        game = self.games.get(ctx.author.id)
+        if not game:
             await self.start(ctx)
+        elif coord and digit.isnumeric() and -1 < int(digit) < 10 or digit.lower() == "x":
+            print(f"{coord=}, {digit=}")
+            await game.update_board(digit, coord)
+        else:
+            raise commands.BadArgument
 
     @sudoku.command()
     async def start(self, ctx: commands.Context, difficulty: str = "Normal") -> None:
@@ -145,10 +156,10 @@ class Sudoku(commands.Cog):
     async def info(self, ctx: commands.Context) -> None:
         """Send info about a currently running Sudoku game."""
         game = self.games.get(ctx.author.id)
-        if not game:
-            await ctx.send("You are not playing a game!")
+        if game:
+            await ctx.send(embed=game.info_embed())
         else:
-            await ctx.send(embed=game.embed())
+            await ctx.send("You are not playing a game!")
 
     @sudoku.command()
     async def hint(self, ctx: commands.Context) -> None:
@@ -157,31 +168,10 @@ class Sudoku(commands.Cog):
         if game:
             game.hints.append(time.time())
             while True:
-                x = random.randint(1, 6)
-                y = random.randint(1, 6)
+                x, y = random.randint(0, 5), random.randint(0, 5)
                 if game.puzzle[x][y] == 0:
-                    self.draw_num()
-                break
-
-
-class CoordinateConverter(commands.Converter):
-    """Class to convert a coordinate made of one letter and one number to a 2D list index."""
-
-    @staticmethod
-    async def convert(argument: str) -> tuple[int, int]:
-        """Convert a coordinate made of one letter and one number to a 2D list index."""
-        argument = argument.lower()
-        if len(argument) != 2:
-            raise commands.BadArgument("The coordinate must be two characters long.")
-        if argument[0].isalnum():
-            number, letter = argument[0], argument[1]
-        else:
-            number, letter = argument[1], argument[0]
-        if 0 > int(number) > 10 or letter not in "abcdef":
-            raise commands.BadArgument("The coordinate must comprise of"
-                                       "1 letter from A to F, and 1 number from 1 to 6.")
-
-        return ord(letter)-65, int(number)-1
+                    await game.update_board(digit=random.randint(0, 5), coord=(x, y))
+                    break
 
 
 class SudokuView(discord.ui.View):
@@ -194,20 +184,20 @@ class SudokuView(discord.ui.View):
         # self.children[0]
 
     @discord.ui.button(style=discord.ButtonStyle.red, label="End Game")
-    async def end_button(self, _: discord.ui.Button) -> None:
+    async def end_button(self, *_) -> None:
         """Button that ends the current game."""
         await self.ctx.invoke(self.ctx.bot.get_command("sudoku finish"))
 
     @discord.ui.button(style=discord.ButtonStyle.green, label="Hint")
-    async def hint_button(self, _: discord.ui.Select) -> None:
+    async def hint_button(self, *_) -> None:
         """Button that fills in one empty square on the Sudoku board."""
         await self.ctx.invoke(self.ctx.bot.get_command("sudoku hint"))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Check to ensure that the interacting user is the user who invoked the command."""
         if interaction.user != self.ctx.author:
-            error_embed = discord.Embed(description="Sorry, but this interaction can only"
-                                                    "be used by the original author.")
+            error_embed = discord.Embed(
+                description="Sorry, but this button can only be used by the original author.")
             await interaction.response.send_message(embed=error_embed, ephemeral=True)
             return False
         return True
