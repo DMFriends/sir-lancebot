@@ -63,7 +63,7 @@ class SudokuGame:
     @staticmethod
     def index_to_coord(position: tuple[int, int]) -> tuple[int, int]:
         """Convert a 2D list index to an x,y coordinate on the Sudoku image."""
-        return position[0] * 100 + 20, position[1] * 100 - 5
+        return position[0] * 83 + 98, (position[1]) * 83 + 13
 
     @staticmethod
     def generate_board() -> list[list[int]]:
