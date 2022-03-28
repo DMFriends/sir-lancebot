@@ -249,12 +249,12 @@ class SudokuGame:
 class SudokuCog(commands.Cog):
     """Cog for the Sudoku game."""
 
-    def __init__(self, grid: list[list[int]], bot: Bot):
+    def __init__(self, bot: Bot):
         self.bot = bot
         self.games: dict[int, SudokuGame] = {}
         # self.ctx = ctx
-        self.grid = grid
-        self.puzzle = GenerateSudokuPuzzle(GenerateSudokuPuzzle().grid)
+        # self.grid = grid
+        # self.puzzle = not sure what to put here
         # self.difficulty = SudokuDifficulty.
 
     def author_check(self, ctx: commands.Context, message: discord.Message) -> bool:
