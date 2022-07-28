@@ -13,10 +13,7 @@ from rapidfuzz import process
 from bot import constants
 from bot.bot import Bot
 from bot.constants import Emojis
-from bot.utils.pagination import (
-    FIRST_EMOJI, LAST_EMOJI,
-    LEFT_EMOJI, LinePaginator, RIGHT_EMOJI,
-)
+from bot.utils.pagination import FIRST_EMOJI, LAST_EMOJI, LEFT_EMOJI, LinePaginator, RIGHT_EMOJI
 
 DELETE_EMOJI = Emojis.trashcan
 
@@ -309,7 +306,7 @@ class HelpSession:
         signature = self._get_command_params(self.query)
         parent = self.query.full_parent_name + " " if self.query.parent else ""
         paginator.add_line(f"**```\n{prefix}{parent}{signature}\n```**")
-        aliases = [f"`{alias}`" if not parent else f"`{parent} {alias}`" for alias in self.query.aliases]
+        aliases = [f"`{alias}`" if not parent else f"`{parent}{alias}`" for alias in self.query.aliases]
         aliases += [f"`{alias}`" for alias in getattr(self.query, "root_aliases", ())]
         aliases = ", ".join(sorted(aliases))
         if aliases:

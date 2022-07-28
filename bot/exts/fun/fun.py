@@ -1,34 +1,20 @@
-import functools
 import json
 import logging
 import random
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Callable, Literal, Optional, Union
 
+import pyjokes
 from discord import Embed, Message
 from discord.ext import commands
 from discord.ext.commands import BadArgument, Cog, Context, MessageConverter, clean_content
 
-from bot import utils
 from bot.bot import Bot
 from bot.constants import Client, Colours, Emojis
 from bot.utils import helpers
 
 log = logging.getLogger(__name__)
-
-UWU_WORDS = {
-    "fi": "fwi",
-    "l": "w",
-    "r": "w",
-    "some": "sum",
-    "th": "d",
-    "thing": "fing",
-    "tho": "fo",
-    "you're": "yuw'we",
-    "your": "yur",
-    "you": "yuw",
-}
 
 
 def caesar_cipher(text: str, offset: int) -> Iterable[str]:
@@ -56,7 +42,6 @@ class Fun(Cog):
 
     def __init__(self, bot: Bot):
         self.bot = bot
-
         self._caesar_cipher_embed = json.loads(Path("bot/resources/fun/caesar_info.json").read_text("UTF-8"))
 
     @staticmethod
@@ -73,23 +58,6 @@ class Fun(Cog):
             await ctx.send(dice)
         else:
             raise BadArgument(f"`{Client.prefix}roll` only supports between 1 and 6 rolls.")
-
-    @commands.command(name="uwu", aliases=("uwuwize", "uwuify",))
-    async def uwu_command(self, ctx: Context, *, text: clean_content(fix_channel_mentions=True)) -> None:
-        """Converts a given `text` into it's uwu equivalent."""
-        conversion_func = functools.partial(
-            utils.replace_many, replacements=UWU_WORDS, ignore_case=True, match_case=True
-        )
-        text, embed = await Fun._get_text_and_embed(ctx, text)
-        # Convert embed if it exists
-        if embed is not None:
-            embed = Fun._convert_embed(conversion_func, embed)
-        converted_text = conversion_func(text)
-        converted_text = helpers.suppress_links(converted_text)
-        # Don't put >>> if only embed present
-        if converted_text:
-            converted_text = f">>> {converted_text.lstrip('> ')}"
-        await ctx.send(content=converted_text, embed=embed)
 
     @commands.command(name="randomcase", aliases=("rcase", "randomcaps", "rcaps",))
     async def randomcase_command(self, ctx: Context, *, text: clean_content(fix_channel_mentions=True)) -> None:
@@ -243,6 +211,12 @@ class Fun(Cog):
                 field["value"] = func(field.get("value", ""))
 
         return Embed.from_dict(embed_dict)
+
+    @commands.command()
+    async def joke(self, ctx: commands.Context, category: Literal["neutral", "chuck", "all"] = "all") -> None:
+        """Retrieves a joke of the specified `category` from the pyjokes api."""
+        joke = pyjokes.get_joke(category=category)
+        await ctx.send(joke)
 
 
 def setup(bot: Bot) -> None:

@@ -1,5 +1,6 @@
 import logging
 from html import unescape
+from typing import Optional
 from urllib.parse import quote_plus
 
 from discord import Embed
@@ -10,11 +11,10 @@ from bot.constants import Colours
 
 logger = logging.getLogger(__name__)
 
-
 API_ROOT = "https://realpython.com/search/api/v1/"
 ARTICLE_URL = "https://realpython.com{article_url}"
 SEARCH_URL = "https://realpython.com/search?q={user_search}"
-
+HOME_URL = "https://realpython.com/"
 
 ERROR_EMBED = Embed(
     title="Error while searching Real Python",
@@ -31,9 +31,27 @@ class RealPython(commands.Cog):
 
     @commands.command(aliases=["rp"])
     @commands.cooldown(1, 10, commands.cooldowns.BucketType.user)
-    async def realpython(self, ctx: commands.Context, *, user_search: str) -> None:
-        """Send 5 articles that match the user's search terms."""
-        params = {"q": user_search, "limit": 5, "kind": "article"}
+    async def realpython(self, ctx: commands.Context, amount: Optional[int] = 5, *,
+                         user_search: Optional[str] = None) -> None:
+        """
+        Send some articles from RealPython that match the search terms.
+
+        By default, the top 5 matches are sent. This can be overwritten to
+        a number between 1 and 5 by specifying an amount before the search query.
+        If no search query is specified by the user, the home page is sent.
+        """
+        if user_search is None:
+            home_page_embed = Embed(title="Real Python Home Page", url=HOME_URL, colour=Colours.orange)
+
+            await ctx.send(embed=home_page_embed)
+
+            return
+
+        if not 1 <= amount <= 5:
+            await ctx.send("`amount` must be between 1 and 5 (inclusive).")
+            return
+
+        params = {"q": user_search, "limit": amount, "kind": "article"}
         async with self.bot.http_session.get(url=API_ROOT, params=params) as response:
             if response.status != 200:
                 logger.error(

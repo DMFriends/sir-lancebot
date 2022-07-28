@@ -5,8 +5,8 @@ from typing import Optional, Union
 
 import discord
 import emojis
+from discord import ClientUser, Member
 from discord.ext import commands
-from discord.ext.commands import guild_only
 
 from bot.bot import Bot
 from bot.constants import Emojis
@@ -72,7 +72,9 @@ class Game:
             await self.message.add_reaction(CROSS_EMOJI)
             await self.message.edit(content=None, embed=embed)
 
-    async def game_over(self, action: str, player1: discord.user, player2: discord.user) -> None:
+    async def game_over(
+        self, action: str, player1: Union[ClientUser, Member], player2: Union[ClientUser, Member]
+    ) -> None:
         """Announces to public chat."""
         if action == "win":
             await self.channel.send(f"Game Over! {player1.mention} won against {player2.mention}")
@@ -361,7 +363,6 @@ class ConnectFour(commands.Cog):
                 self.games.remove(game)
             raise
 
-    @guild_only()
     @commands.group(
         invoke_without_command=True,
         aliases=("4inarow", "connect4", "connectfour", "c4"),
@@ -426,7 +427,6 @@ class ConnectFour(commands.Cog):
 
         await self._play_game(ctx, user, board_size, str(emoji1), str(emoji2))
 
-    @guild_only()
     @connect_four.command(aliases=("bot", "computer", "cpu"))
     async def ai(
         self,

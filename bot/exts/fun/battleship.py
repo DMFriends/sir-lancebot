@@ -110,8 +110,8 @@ class Game:
 
         self.gameover: bool = False
 
-        self.turn: Optional[discord.Member] = None
-        self.next: Optional[discord.Member] = None
+        self.turn: Optional[Player] = None
+        self.next: Optional[Player] = None
 
         self.match: Optional[re.Match] = None
         self.surrender: bool = False
@@ -369,7 +369,6 @@ class Battleship(commands.Cog):
         return any(player in (game.p1.user, game.p2.user) for game in self.games)
 
     @commands.group(invoke_without_command=True)
-    @commands.guild_only()
     async def battleship(self, ctx: commands.Context) -> None:
         """
         Play a game of Battleship with someone else!
