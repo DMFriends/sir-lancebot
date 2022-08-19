@@ -4,7 +4,9 @@ import os
 from typing import Optional
 import random
 import time
-from board_generation import GenerateSudokuPuzzle
+import io
+import enum
+from ._board_generation import GenerateSudokuPuzzle
 
 import discord
 from PIL import Image, ImageDraw, ImageFont
@@ -37,21 +39,22 @@ class CoordinateConverter(commands.Converter):
         return ord(letter)-97, int(number)-1
 
 
-class SudokuGame:
-    """Class that contains information and regarding Sudoku game."""
+# class Difficulty(enum.Enum):
+#     """Class for enumerating the difficulty of the Sudoku game."""
+#
+#     difficulties = {"easy": 1, "medium": 2, "hard": 3}
+#     difficulty = random.choice(list(difficulties.values()))
 
-    def __init__(self, ctx: commands.Context, difficulty: str):
-        self.ctx = ctx
+
+class SudokuGame:
+    """Class that contains information regarding the currently running Sudoku game."""
+
+    def __init__(self, ctx: commands.Context):
         self.image = Image.open(SUDOKU_TEMPLATE_PATH)
-        self.solution = self.generate_solution()
-        self.puzzle = self.generate_puzzle()
+        self.generate_puzzle()
         self.running: bool = True
         self.invoker: discord.Member = ctx.author
         self.started_at = time.time()
-        self.difficulty: str = difficulty  # enum class?
-        self.hints: list[time.time] = []
-        self.message = None
-        # self.formatted_time = formatted_time
 
     def draw_num(self, digit: int, position: tuple[int, int]) -> Image:
         """Draw a number on the Sudoku board."""
@@ -66,12 +69,12 @@ class SudokuGame:
         """Convert a 2D list index to an x,y coordinate on the Sudoku image."""
         return position[0] * 83 + 100, (position[1]) * 83 + 11
 
-    def generate_puzzle(self):
-        """Generate a valid Sudoku solution board."""
-        self.puzzle = GenerateSudokuPuzzle.remove_numbers_from_grid()
-
-    def generate_solution(self):
-        self.solution = GenerateSudokuPuzzle.generate_solution()
+    @classmethod
+    def generate_puzzle(cls):
+        """Generate a valid Sudoku board."""
+        generate_puzzle = GenerateSudokuPuzzle()
+        generate_puzzle.generate_solution()
+        generate_puzzle.remove_numbers_from_grid()
 
     @property
     def solved(self) -> bool:
@@ -96,6 +99,43 @@ class SudokuGame:
 
         return formatted_time
 
+
+class Sudoku(commands.Cog):
+    """Cog for the Sudoku game."""
+
+    def __init__(self, bot: Bot):
+        self.bot = bot
+        self.games: dict[int, SudokuGame]
+        self.started_at = time.time()
+        self.ctx = ctx
+        self.hints: list[time.time] = []
+        self.message = None
+
+    async def timer_embed(self, ctx: commands.Context):
+        current_time = time.time()
+        time_elapsed = current_time - self.started_at
+        formatted_time = self.time_convert(time_elapsed)
+        timer_message = discord.Embed(title="Time Elapsed:", description=formatted_time, color=Colours.blue)
+        send_timer = await ctx.send(embed=timer_message)
+
+        game = self.games.get(ctx.author.id)
+        while game:
+            await asyncio.sleep(1)
+            current_time = time.time()
+            time_elapsed = current_time - self.started_at
+            formatted_time = self.time_convert(time_elapsed)
+            timer_message.description = formatted_time
+            await send_timer.edit(embed=timer_message)
+
+            # if coord and digit.isnumeric() and -1 < int(digit) < 10 or digit in "xX":
+            #     # print(f"{coord=}, {digit=}")
+            #     await game.update_board(digit, coord)
+            # else:
+            #     raise commands.BadArgument
+
+            # while game is in progress:
+            # print(timer_message)
+
     def info_embed(self) -> discord.Embed:
         """Create an embed that displays game information."""
         # current_time = time.time()
@@ -110,51 +150,25 @@ class SudokuGame:
         return info_embed
 
     async def update_board(self, digit=None, coord=None):
-        # current_time = time.time()
-        # time_elapsed = current_time - self.started_at
-        # formatted_time = self.time_convert(time_elapsed)
-        # timer_message = "Time Elapsed -> " + formatted_time
         sudoku_embed = discord.Embed(title="Sudoku", color=Colours.soft_orange)
         if digit and coord:
             self.draw_num(digit, coord)
-        self.image.save("sudoku.png")
-        board_image = discord.File("sudoku.png")
-        sudoku_embed.set_image(url="attachment://sudoku.png")
+        board_image = io.BytesIO(b"sudoku.png: \x00\x01")
+        sudoku_embed.set_image(board_image)
         if self.message:
             await self.message.delete()
         self.message = await self.ctx.send(file=board_image, embed=sudoku_embed, view=SudokuView(self.ctx))
-        os.remove("sudoku.png")
 
-
-class Sudoku(commands.Cog):
-    """Cog for the Sudoku game."""
-
-    def __init__(self, bot: Bot):
-        self.bot = bot
-        self.games: dict[int:SudokuGame] = {}
-        self.started_at = time.time()
-
-    def num_concat(self, num1, num2):
-        num1 = str(num1)
-        num2 = str(num2)
-        num1 += num2
-        return num1
-
-    def time_convert(self, secs):
-        mins = secs // 60
-        secs = secs % 60
-        mins = mins % 60
-        if secs < 10:
-            secs_2 = self.num_concat(0, int(float(secs)))
-            formatted_time = "{0}:{1}".format(int(mins), secs_2)
-        else:
-            formatted_time = "{0}:{1}".format(int(mins), int(secs))
-
-        return formatted_time
+    def find_empty_square(self, grid):
+        """Return the next empty square coordinates in the grid."""
+        for i in range(6):
+            for j in range(6):
+                if grid[i][j] == 0:
+                    return i, j
+        return
 
     @commands.group(aliases=["s"], invoke_without_command=True)
-    async def sudoku(self, ctx: commands.Context, coord: Optional[CoordinateConverter] = None,
-                     digit: Optional[str] = None) -> None:
+    async def sudoku(self, ctx: commands.Context) -> None:
         """
         Play Sudoku with the bot!
 
@@ -167,33 +181,11 @@ class Sudoku(commands.Cog):
         game = self.games.get(ctx.author.id)
         if not game:
             await ctx.send("Welcome to Sudoku! Type your guesses like this: `A1 1`")
-            current_time = time.time()
-            time_elapsed = current_time - self.started_at
-            formatted_time = self.time_convert(time_elapsed)
-            timer_message = discord.Embed(title="Time Elapsed:", description=formatted_time, color=Colours.blue)
-            # timer_message_2 = discord.Embed(title="Time Elapsed:", description=formatted_time, color=Colours.blue)
-            send_timer = await ctx.send(embed=timer_message)
-            # print(timer_message)
+            timer_embed()
 
+            await self.timer_embed(ctx)
             await self.start(ctx)
             await self.bot.wait_for(event="message")
-
-            while game:
-                await asyncio.sleep(1)
-                current_time = time.time()
-                time_elapsed = current_time - self.started_at
-                formatted_time = self.time_convert(time_elapsed)
-                timer_message.description = formatted_time
-                await send_timer.edit(embed=timer_message)
-
-            # if coord and digit.isnumeric() and -1 < int(digit) < 10 or digit in "xX":
-            #     # print(f"{coord=}, {digit=}")
-            #     await game.update_board(digit, coord)
-            # else:
-            #     raise commands.BadArgument
-
-            # while game is in progress:
-            # print(timer_message)
 
     @sudoku.command()
     async def start(self, ctx: commands.Context, difficulty: str = "Normal") -> None:
@@ -217,7 +209,7 @@ class Sudoku(commands.Cog):
         else:
             await ctx.send("You are not playing a game! Type `.s` to begin.")
 
-    @sudoku.command(aliases=["information", "score"])
+    @sudoku.command()
     async def info(self, ctx: commands.Context) -> None:
         """Send info about a currently running Sudoku game."""
         game = self.games.get(ctx.author.id)
@@ -233,20 +225,15 @@ class Sudoku(commands.Cog):
         if game:
             game.hints.append(time.time())
             while True:
-                x, y = random.randint(0, 5), random.randint(0, 5)
-                if game.puzzle[x][y] == 0:
-                    await game.update_board(digit=random.randint(0, 5), coord=(x, y))
-                    break
+                empty_coords = self.find_empty_square(game.puzzle)
+                empty_coords_list = [empty_coords]
+
+                await game.update_board(digit=random.randint(0, 5), coord=random.choice(empty_coords_list))
+                break
 
 
 class SudokuView(discord.ui.View):
     """A set of buttons to control a Sudoku game."""
-
-    def __init__(self, ctx: commands.Context):
-        super().__init__()
-        self.disabled = None
-        self.ctx = ctx
-        # self.children[0]
 
     @discord.ui.button(style=discord.ButtonStyle.green, label="Hint")
     async def hint_button(self, *_) -> None:
@@ -262,6 +249,7 @@ class SudokuView(discord.ui.View):
     async def end_button(self, *_) -> None:
         """Button that ends the current game."""
         await self.ctx.invoke(self.ctx.bot.get_command("sudoku finish"))
+        self.stop()
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Check to ensure that the interacting user is the user who invoked the command."""
